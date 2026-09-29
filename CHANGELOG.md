@@ -2,6 +2,39 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.2] — 2026-09-29
+
+### 修复
+
+- **重载一次，插件就永久失效**（`ctx.webServer.register()` 的返回值被丢弃）。
+  `register()` 返回一个移除路由的 disposer，而且**遇到重复路径会直接抛错**。
+  原写法把 disposer 扔掉了，于是旧路由在卸载后仍留在路由表里；下一次
+  `apply()`——无论 HMR 重载还是改配置——就死在
+  `webserver: duplicate exact route "/local-bridge/auth"` 上。
+  更糟的是 cordis 会把这个异常吞进一个死掉的 fiber，进程照常运行，
+  最终状态是**既没有路由也没有密钥文件**：一次静默且永久的桥接中断。
+
+  这是与 0.1.1 三个问题**同一类**的第四个——「注册了资源却没有归属它的
+  effect」。改法与其他所有 DSH 插件一致：
+
+  ```js
+  ctx.effect(() => ctx.webServer.register({ ... }), "dsh-local-bridge: route");
+  ```
+
+  复现与验证都对着真实的 `dsh-host-webserver` 语义做过。
+- **测试脚手架看不到这类 bug**。原来的 mock `register()` 只是往数组里 push，
+  从不释放任何东西，所以「disposer 被丢弃」在结构上不可能被测出来。
+  现在 mock 忠实还原宿主语义：记录到共享表、返回移除路由的 disposer、
+  重复路径抛错。
+- README 与 `dsh_bridge/INSTALL.md` 里 `webserver` 的大小写更正为
+  `webServer`——与 0.1.1 修的是同一个错，只是这次在正文里。
+
+### 新增
+
+- 4 项测试：路由随插件停止而释放、重载后可再次注册同一路径、
+  「不释放就会抛错」的反向对照、响应里的 `secretPath` 与导出的 `name`
+  （Python 客户端会读 `secretPath`，写错等于让用户去找一个不存在的文件）。
+
 ## [0.1.1] — 2026-09-29
 
 ### 修复
@@ -53,4 +86,4 @@
 初始版本：在 DSH 进程内注册 `/local-bridge/auth`，让本机 CLI 通过
 loopback + 每次启动的 32 字节共享密钥自行取得带 token 的 URL。
 
-⚠️ 见 0.1.1：**这个版本无法加载**，请直接升级。
+⚠️ 这个版本无法加载，请直接升级到 0.1.2。
