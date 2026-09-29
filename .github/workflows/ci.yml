@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      # Zero dependencies is a deliberate property, not an accident: the
+      # plugin must not collide with anything else in the host's layer stack.
+      - name: Assert zero dependencies
+        run: |
+          node -e "const p=require('./package.json'); \
+            const d={...(p.dependencies||{}),...(p.peerDependencies||{})}; \
+            if (Object.keys(d).length) { console.error('unexpected deps', d); process.exit(1); } \
+            console.log('ok: zero dependencies')"
+      - name: Plugin tests
+        run: npm test
+
+  # The plugin's real value is that it hands out a credential. These checks
+  # guard the two mistakes no unit test would catch.
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No token-shaped literals
+        run: |
+          if git grep -nE 'token=[A-Za-z0-9_-]{16,}' -- .; then
+            echo "::error::a token-shaped literal is committed"; exit 1
+          fi
+          echo "ok"
+      - name: No machine-specific paths
+        run: |
+          if git grep -n '/Users/' -- .; then
+            echo "::error::a machine-specific absolute path is committed"; exit 1
+          fi
+          echo "ok"
+      - name: Route stays outside /api
+        # DSH authenticates all of /api before dispatch, so a bridge mounted
+        # there is unreachable by the caller that needs it. This is the exact
+        # mistake the first draft made; it is cheap to re-introduce.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const src = fs.readFileSync('lib/index.js', 'utf8');
+            const m = src.match(/BRIDGE_PATH = \"([^\"]+)\"/);
+            if (!m) { console.error('cannot find BRIDGE_PATH'); process.exit(1); }
+            if (m[1].startsWith('/api/')) {
+              console.error('BRIDGE_PATH is under /api and will 401:', m[1]);
+              process.exit(1);
+            }
+            console.log('ok: BRIDGE_PATH =', m[1]);
+          "
