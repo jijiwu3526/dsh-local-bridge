@@ -91,6 +91,27 @@ dsh plugin --profile web remove dsh-local-bridge
 
 密钥文件在进程退出时自动删除。
 
+## 升级
+
+⚠️ **从 0.1.0 或更早升级，必须完整重启 DSH，不能只替换文件。**
+
+0.1.0 把 `webServer.register()` 返回的 disposer 丢掉了，于是旧路由在插件
+卸载后仍留在路由表里。0.1.1+ 修好了，但若你只是把文件换上去，新实例会撞上
+`webserver: duplicate exact route "/local-bridge/auth"` 而加载失败——
+此时进程里既没有路由也没有密钥文件，桥接会一直不通，直到你**完全退出并重启
+DSH**（不是改配置，是进程重启）。
+
+```bash
+dsh plugin --profile web add github:jijiwu3526/dsh-local-bridge
+# 然后完整重启 DSH 进程
+```
+
+验证是否已到 0.1.2：
+
+```bash
+grep '"version"' ~/.dsh/profiles/web/node_modules/dsh-local-bridge/package.json
+```
+
 ## 前提
 
 - DSH **≥ 0.1.5-rc.1**（`engines` 声明）
