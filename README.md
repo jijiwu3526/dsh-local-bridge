@@ -14,7 +14,7 @@ http://127.0.0.1:3080/?token=<40位随机串>
 
 ## 解决
 
-插件跑在 DSH **进程内部**，那里 `ctx.connection.authenticatedUrl()` 可以随时铸造一个新鲜有效的 URL。装上之后：
+插件跑在 DSH **进程内部**，那里 `ctx.connection.authenticatedUrl()` 能现场铸造一个新鲜有效的 URL。装上之后：
 
 ```bash
 python3 dsh_session.py presets      # 直接能跑，不必传 --url
