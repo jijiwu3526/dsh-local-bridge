@@ -4,8 +4,15 @@ import type { Context } from "@deepseek-ai/cordis";
 export declare const name: "dsh-local-bridge";
 export declare const inject: string[];
 
-/** Absolute path on the shared `/api` channel. */
-export declare const BRIDGE_PATH: "/api/local-bridge/auth";
+/**
+ * Absolute route path. Deliberately OUTSIDE `/api`.
+ *
+ * DSH authenticates the whole `/api` channel before dispatching to any route
+ * on it, so a bridge mounted there is unreachable by the very unauthenticated
+ * caller it serves — a chicken-and-egg problem. The plugin registers via
+ * `ctx.webServer.register()` to sit beside `/api` instead.
+ */
+export declare const BRIDGE_PATH: "/local-bridge/auth";
 
 /** 0600 file holding the per-boot shared secret. */
 declare const SECRET_PATH: string;
@@ -16,7 +23,10 @@ declare const LOOPBACK: Set<string>;
 declare function mintSecret(): string;
 declare function persistSecret(value: string): void;
 declare function isLoopback(request: Request): boolean;
-declare function json(body: object, status?: number): Response;
-declare function handle(ctx: Context, request: Request): Response;
+declare function send(
+	response: unknown,
+	status: number,
+	body: Record<string, unknown>,
+): void;
 
 export declare function apply(ctx: Context): void;
